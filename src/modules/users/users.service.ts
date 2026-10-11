@@ -16,7 +16,7 @@ export class UsersService {
         @InjectModel(User.name) private userModel: Model<UserDocument>,
     ) {}
 
-    async create(createUserDto: CreateUserDto): Promise<User> {
+    async create(createUserDto: CreateUserDto): Promise<UserDocument> {
         const existing = await this.userModel.findOne({
             $or: [
                 { username: createUserDto.username },
@@ -108,5 +108,25 @@ export class UsersService {
         if (!existing) throw new NotFoundException('المستخدم غير موجود');
 
         await this.userModel.findByIdAndUpdate(id, { deleted_at: new Date() });
+    }
+
+
+    findForLogin(login: string) {
+        return this.userModel
+            .findOne({
+                $or: [{ username: login }, { phone: login }],
+                deleted_at: null,
+            })
+            .select('+password');
+    }
+
+    findWithRefreshHash(id: string) {
+        return this.userModel
+            .findOne({ _id: id, deleted_at: null })
+            .select('+refresh_token_hash');
+    }
+
+    async setRefreshTokenHash(id: string, hash: string | null) {
+        await this.userModel.updateOne({ _id: id }, { refresh_token_hash: hash });
     }
 }

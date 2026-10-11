@@ -57,6 +57,9 @@ export class User {
 
     @Prop({ type: Date, default: null })
     deleted_at: Date;
+
+    @Prop({ type: String, default: null, select: false })
+    refresh_token_hash: string | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

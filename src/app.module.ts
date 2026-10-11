@@ -5,6 +5,7 @@ import { appConfig, databaseConfig, jwtConfig } from './config/index.js';
 import { envValidationSchema } from './config/env.validation.js';
 import { DatabaseModule } from './database/database.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -16,6 +17,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       validationSchema: envValidationSchema,
     }),
     DatabaseModule,
+    AuthModule,
     UsersModule,
   ],
 
