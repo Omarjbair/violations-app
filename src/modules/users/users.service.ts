@@ -9,11 +9,14 @@ import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { paginate } from '../../common/utils/pagination.js';
+import { Paginated } from '../../common/interfaces/pagination.interface.js';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 
 @Injectable()
 export class UsersService {
     constructor(
-        @InjectModel(User.name) private userModel: Model<UserDocument>,
+        @InjectModel(User.name) private userModel: Model<User>,
     ) {}
 
     async create(createUserDto: CreateUserDto): Promise<UserDocument> {
@@ -39,8 +42,8 @@ export class UsersService {
     }
 
 
-    async findAll(): Promise<User[]> {
-        return this.userModel.find({ deleted_at: null });
+    async findAll(query: PaginationQueryDto): Promise<Paginated<User>> {
+        return paginate(this.userModel, { deleted_at: null }, query, { name: 1 });
     }
 
     async findById(id: string): Promise<UserDocument> {

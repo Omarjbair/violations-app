@@ -1,4 +1,3 @@
-// src/users/schemas/user.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
@@ -9,7 +8,7 @@ export enum UserRole {
     USER = 'user',
 }
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } })
 export class User {
     @Prop({
         required: [true, 'اسم المستخدم مطلوب'],
