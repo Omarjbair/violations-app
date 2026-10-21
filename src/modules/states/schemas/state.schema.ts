@@ -7,7 +7,6 @@ export type StateDocument = HydratedDocument<State>;
 export class State {
     @Prop({
         required: [true, 'اسم المحافظة مطلوب'],
-        unique: true,
         trim: true,
     })
     name: string;
@@ -17,3 +16,8 @@ export class State {
 }
 
 export const StateSchema = SchemaFactory.createForClass(State);
+
+StateSchema.index(
+    { name: 1 },
+    { unique: true, partialFilterExpression: { deleted_at: null } },
+);

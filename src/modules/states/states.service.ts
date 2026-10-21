@@ -6,6 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { State, StateDocument } from './schemas/state.schema.js';
+import { Address } from '../addresses/schemas/address.schema.js';
 import { CreateStateDto } from './dto/create-state.dto.js';
 import { UpdateStateDto } from './dto/update-state.dto.js';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
@@ -16,16 +17,20 @@ import { Paginated } from '../../common/interfaces/pagination.interface.js';
 export class StatesService {
     constructor(
         @InjectModel(State.name) private stateModel: Model<State>,
+        @InjectModel(Address.name) private addressModel: Model<Address>,
     ) {}
 
-    async create(dto: CreateStateDto): Promise<StateDocument> {
-        const existing = await this.stateModel.findOne({ name: dto.name });
+    async create(createStateDto: CreateStateDto): Promise<StateDocument> {
+        const existing = await this.stateModel.findOne({
+            name: createStateDto.name,
+            deleted_at: null,
+        });
 
         if (existing) {
             throw new ConflictException('اسم المحافظة مستخدم مسبقاً');
         }
 
-        return this.stateModel.create(dto);
+        return this.stateModel.create(createStateDto);
     }
 
     async findAll(query: PaginationQueryDto): Promise<Paginated<State>> {
@@ -45,6 +50,7 @@ export class StatesService {
             const existing = await this.stateModel.findOne({
                 name: updateStateDto.name,
                 _id: { $ne: id },
+                deleted_at: null, //
             });
 
             if (existing) {
@@ -64,15 +70,41 @@ export class StatesService {
     }
 
     async remove(id: string): Promise<void> {
-        // TODO: Dont Delete if there are addresses linked to this state
+        const session = await this.stateModel.db.startSession();
 
-        const result = await this.stateModel.updateOne(
-            { _id: id, deleted_at: null },
-            { deleted_at: new Date() },
-        );
+        try {
+            await session.withTransaction(async () => {
+                // check if state exist
+                const state = await this.stateModel.findOne(
+                    { _id: id, deleted_at: null },
+                    null,
+                    { session },
+                );
 
-        if (result.matchedCount === 0) {
-            throw new NotFoundException('المحافظة غير موجودة');
+                if (!state) throw new NotFoundException('المحافظة غير موجودة');
+
+                // check linke addresses
+                const linkedAddresses = await this.addressModel.countDocuments(
+                    { state: id, deleted_at: null },
+                    { session },
+                );
+
+                if (linkedAddresses > 0) {
+                    throw new ConflictException(
+                        'لا يمكن حذف المحافظة لوجود عناوين مرتبطة بها',
+                    );
+                }
+
+                // 3) soft delete the state
+                await this.stateModel.updateOne(
+                    { _id: id, deleted_at: null },
+                    { deleted_at: new Date() },
+                    { session },
+                );
+            });
+            
+        } finally {
+            await session.endSession();
         }
     }
 }

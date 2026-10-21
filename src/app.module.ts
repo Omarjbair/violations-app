@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { StatesModule } from './modules/states/states.module.js';
+import { CitizensModule } from './modules/citiziens/citizens.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,6 +22,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AuthModule,
     UsersModule,
     StatesModule,
+    CitizensModule,
   ],
 
 })

@@ -18,30 +18,28 @@ import { Roles } from '../../common/decorators/roles.decorator.js';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 
 @Controller('v1/states')
+@Roles(UserRole.ADMIN)
 export class StatesController {
     constructor(private readonly statesService: StatesService) {}
 
     @Get()
-    @Roles(UserRole.ADMIN, UserRole.USER)
+
     findAll(@Query() query: PaginationQueryDto) {
         return this.statesService.findAll(query);
     }
 
     @Get(':id')
-    @Roles(UserRole.ADMIN, UserRole.USER)
     findOne(@Param('id', ParseObjectIdPipe) id: string) {
         return this.statesService.findById(id);
     }
 
 
     @Post()
-    @Roles(UserRole.ADMIN)
     create(@Body() createStateDto: CreateStateDto) {
         return this.statesService.create(createStateDto);
     }
 
     @Patch(':id')
-    @Roles(UserRole.ADMIN)
     update(
         @Param('id', ParseObjectIdPipe) id: string,
         @Body() updateStateDto: UpdateStateDto,
@@ -50,7 +48,6 @@ export class StatesController {
     }
 
     @Delete(':id')
-    @Roles(UserRole.ADMIN)
     @HttpCode(204)
     remove(@Param('id', ParseObjectIdPipe) id: string) {
         return this.statesService.remove(id);
