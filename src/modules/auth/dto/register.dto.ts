@@ -8,7 +8,9 @@ export class RegisterDto {
     username: string;
 
     @IsString({ message: 'رقم الهاتف يجب أن يكون نصاً' })
-    @Matches(SYRIAN_PHONE_REGEX, { message: 'رقم الهاتف يجب أن يكون رقماً صالحاً' })
+    @Matches(SYRIAN_PHONE_REGEX, {
+        message: 'رقم الهاتف يجب أن يكون رقماً صالحاً',
+    })
     phone: string;
 
     @IsString({ message: 'كلمة المرور يجب أن تكون نصاً' })

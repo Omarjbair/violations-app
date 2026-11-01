@@ -14,6 +14,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
+import { RedisService } from '../../redis/redis.service.js';
 
 const NOT_FOUND = 'الفرع غير موجود';
 const CODE_TAKEN = 'رمز الفرع مستخدم مسبقاً';
@@ -26,6 +27,7 @@ export class BranchesService {
         @InjectModel(Branch.name) private branchModel: Model<Branch>,
         @InjectModel(User.name) private userModel: Model<User>,
         private readonly addressesService: AddressesService,
+        private readonly redis: RedisService,
     ) {}
 
     async create(dto: CreateBranchDto): Promise<BranchDocument> {
@@ -42,10 +44,14 @@ export class BranchesService {
                 address_id: dto.address_id,
             });
 
-            return await branch.populate({
+            const created = await branch.populate({
                 path: 'address_id',
                 populate: { path: 'state_id', select: 'name' },
             });
+
+            await this.redis.invalidate('cache:branches');
+
+            return created;
         } catch (error) {
             if (isDuplicateKeyError(error)) {
                 throw new ConflictException(CODE_TAKEN);
@@ -55,9 +61,14 @@ export class BranchesService {
     }
 
     async findAll(query: PaginationQueryDto): Promise<Paginated<Branch>> {
-        return paginate(this.branchModel, { deleted_at: null }, query, {
-            code: 1,
-        });
+        return this.redis.getOrSet(
+            `cache:branches:list:${query.page}:${query.limit}`,
+            this.redis.cacheTtl,
+            () =>
+                paginate(this.branchModel, { deleted_at: null }, query, {
+                    code: 1,
+                }),
+        );
     }
 
     async findById(id: string): Promise<BranchDocument> {
@@ -108,6 +119,8 @@ export class BranchesService {
 
             if (!updated) throw new NotFoundException(NOT_FOUND);
 
+            await this.redis.invalidate('cache:branches');
+
             return updated;
         } catch (error) {
             if (isDuplicateKeyError(error)) {
@@ -136,6 +149,8 @@ export class BranchesService {
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.redis.invalidate('cache:branches');
     }
 
     private async assertUnique(

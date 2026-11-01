@@ -25,6 +25,9 @@ import { BranchesService } from '../branches/branches.service.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
+import { AuditService } from '../audit/audit.service.js';
+import { toAuditSnapshot } from '../../common/utils/audit-snapshot.js';
+import { ReceiptPayment, renderPaymentReceipt } from './receipt.template.js';
 
 const NOT_FOUND = 'الدفعة غير موجودة';
 const VIOLATION_NOT_FOUND = 'المخالفة غير موجودة';
@@ -49,6 +52,7 @@ export class PaymentsService {
         private violationModel: Model<Violation>,
         private readonly currenciesService: CurrenciesService,
         private readonly branchesService: BranchesService,
+        private readonly auditService: AuditService,
     ) {}
 
     async create(
@@ -117,6 +121,13 @@ export class PaymentsService {
 
         await this.recalculateViolation(dto.violation_id);
 
+        await this.auditService.record({
+            action: 'create',
+            entityType: 'payment',
+            entityId: payment.id,
+            after: toAuditSnapshot(payment),
+        });
+
         return payment;
     }
 
@@ -170,8 +181,42 @@ export class PaymentsService {
         return payment;
     }
 
+    async getReceiptHtml(id: string): Promise<string> {
+        const payment = await this.findDocument(id);
+
+        await payment.populate([
+            {
+                path: 'violation_id',
+                select: 'violation_number status fine_amount paid_amount violation_date location citizen_id vehicle_id violation_type_id',
+                populate: [
+                    {
+                        path: 'citizen_id',
+                        select: 'national_id first_name father_name last_name phone',
+                    },
+                    {
+                        path: 'vehicle_id',
+                        select: 'plate_number plate_code plate_category make model color',
+                    },
+                    {
+                        path: 'violation_type_id',
+                        select: 'code name',
+                    },
+                ],
+            },
+            { path: 'currency_id', select: 'code name' },
+            { path: 'branch_id', select: 'code name phone' },
+            {
+                path: 'accountant_id',
+                select: 'username first_name last_name',
+            },
+        ]);
+
+        return renderPaymentReceipt(payment as unknown as ReceiptPayment);
+    }
+
     async update(id: string, dto: UpdatePaymentDto): Promise<PaymentDocument> {
         const payment = await this.findDocument(id);
+        const before = toAuditSnapshot(payment);
         const update: Record<string, unknown> = {};
 
         if (dto.status && dto.status !== payment.status) {
@@ -197,11 +242,20 @@ export class PaymentsService {
             await this.recalculateViolation(payment.violation_id.toString());
         }
 
+        await this.auditService.record({
+            action: 'update',
+            entityType: 'payment',
+            entityId: updated.id,
+            before,
+            after: toAuditSnapshot(updated),
+        });
+
         return updated;
     }
 
     async remove(id: string): Promise<void> {
         const payment = await this.findDocument(id);
+        const before = toAuditSnapshot(payment);
 
         await this.paymentModel.updateOne(
             { _id: id, deleted_at: null },
@@ -209,6 +263,13 @@ export class PaymentsService {
         );
 
         await this.recalculateViolation(payment.violation_id.toString());
+
+        await this.auditService.record({
+            action: 'delete',
+            entityType: 'payment',
+            entityId: payment.id,
+            before,
+        });
     }
 
     private async findDocument(id: string): Promise<PaymentDocument> {

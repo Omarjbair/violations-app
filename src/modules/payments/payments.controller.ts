@@ -8,7 +8,10 @@ import {
     Patch,
     Post,
     Query,
+    Res,
+    StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ParseObjectIdPipe } from '@nestjs/mongoose';
 import { PaymentsService } from './payments.service.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
@@ -32,6 +35,22 @@ export class PaymentsController {
     @Roles(UserRole.ADMIN, UserRole.USER)
     findOne(@Param('id', ParseObjectIdPipe) id: string) {
         return this.paymentsService.findById(id);
+    }
+
+    @Get(':id/receipt')
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    async receipt(
+        @Param('id', ParseObjectIdPipe) id: string,
+        @Res({ passthrough: true }) response: Response,
+    ): Promise<StreamableFile> {
+        const html = await this.paymentsService.getReceiptHtml(id);
+
+        response.set({
+            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Disposition': `inline; filename="receipt-${id}.html"`,
+        });
+
+        return new StreamableFile(Buffer.from(html, 'utf8'));
     }
 
     @Post()

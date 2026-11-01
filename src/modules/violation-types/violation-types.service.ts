@@ -15,6 +15,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
+import { RedisService } from '../../redis/redis.service.js';
 
 const NOT_FOUND = 'نوع المخالفة غير موجود';
 const CODE_TAKEN = 'رمز نوع المخالفة مستخدم مسبقاً';
@@ -25,6 +26,7 @@ export class ViolationTypesService {
     constructor(
         @InjectModel(ViolationType.name)
         private violationTypeModel: Model<ViolationType>,
+        private readonly redis: RedisService,
     ) {}
 
     async create(dto: CreateViolationTypeDto): Promise<ViolationTypeDocument> {
@@ -32,13 +34,17 @@ export class ViolationTypesService {
         await this.assertUnique({ code, name: dto.name });
 
         try {
-            return await this.violationTypeModel.create({
+            const violationType = await this.violationTypeModel.create({
                 code,
                 name: dto.name,
                 description: dto.description,
                 default_fine: dto.default_fine,
                 is_active: dto.is_active,
             });
+
+            await this.redis.invalidate('cache:violation-types');
+
+            return violationType;
         } catch (error) {
             this.mapDuplicateError(error);
         }
@@ -47,9 +53,14 @@ export class ViolationTypesService {
     async findAll(
         query: PaginationQueryDto,
     ): Promise<Paginated<ViolationType>> {
-        return paginate(this.violationTypeModel, { deleted_at: null }, query, {
-            code: 1,
-        });
+        return this.redis.getOrSet(
+            `cache:violation-types:list:${query.page}:${query.limit}`,
+            this.redis.cacheTtl,
+            () =>
+                paginate(this.violationTypeModel, { deleted_at: null }, query, {
+                    code: 1,
+                }),
+        );
     }
 
     async findById(id: string): Promise<ViolationTypeDocument> {
@@ -96,6 +107,8 @@ export class ViolationTypesService {
 
             if (!updated) throw new NotFoundException(NOT_FOUND);
 
+            await this.redis.invalidate('cache:violation-types');
+
             return updated;
         } catch (error) {
             this.mapDuplicateError(error);
@@ -114,6 +127,8 @@ export class ViolationTypesService {
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.redis.invalidate('cache:violation-types');
     }
 
     private async assertUnique(

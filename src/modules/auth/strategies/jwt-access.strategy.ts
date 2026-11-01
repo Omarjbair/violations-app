@@ -8,10 +8,15 @@ import { UserRole } from '../../users/schemas/user.schema.js';
 export interface JwtPayload {
     sub: string;
     role: UserRole;
+    jti?: string;
+    sid?: string;
 }
 
 @Injectable()
-export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') {
+export class JwtAccessStrategy extends PassportStrategy(
+    Strategy,
+    'jwt-access',
+) {
     constructor(@Inject(jwtConfig.KEY) cfg: ConfigType<typeof jwtConfig>) {
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -21,6 +26,6 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
     }
 
     validate(payload: JwtPayload) {
-        return { id: payload.sub, role: payload.role };
+        return { id: payload.sub, role: payload.role, sid: payload.sid };
     }
 }

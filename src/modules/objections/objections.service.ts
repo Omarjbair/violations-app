@@ -21,6 +21,8 @@ import {
 import { CitizensService } from '../citizens/citizens.service.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { paginate } from '../../common/utils/pagination.js';
+import { AuditService } from '../audit/audit.service.js';
+import { toAuditSnapshot } from '../../common/utils/audit-snapshot.js';
 
 const NOT_FOUND = 'الاعتراض غير موجود';
 const VIOLATION_NOT_FOUND = 'المخالفة غير موجودة';
@@ -37,6 +39,7 @@ export class ObjectionsService {
         @InjectModel(Violation.name)
         private violationModel: Model<Violation>,
         private readonly citizensService: CitizensService,
+        private readonly auditService: AuditService,
     ) {}
 
     async create(dto: CreateObjectionDto): Promise<ObjectionDocument> {
@@ -60,12 +63,21 @@ export class ObjectionsService {
 
         if (pending) throw new ConflictException(PENDING_EXISTS);
 
-        return this.objectionModel.create({
+        const objection = await this.objectionModel.create({
             violation_id: dto.violation_id,
             applicant_id: dto.applicant_id,
             reason: dto.reason,
             description: dto.description,
         });
+
+        await this.auditService.record({
+            action: 'create',
+            entityType: 'objection',
+            entityId: objection.id,
+            after: toAuditSnapshot(objection),
+        });
+
+        return objection;
     }
 
     async findAll(query: ObjectionsQueryDto): Promise<Paginated<Objection>> {
@@ -124,6 +136,7 @@ export class ObjectionsService {
         dto: UpdateObjectionDto,
     ): Promise<ObjectionDocument> {
         const objection = await this.findDocument(id);
+        const before = toAuditSnapshot(objection);
 
         if (objection.status !== ObjectionStatus.PENDING) {
             throw new ConflictException(EDIT_REVIEWED);
@@ -148,6 +161,14 @@ export class ObjectionsService {
 
         if (!updated) throw new ConflictException(EDIT_REVIEWED);
 
+        await this.auditService.record({
+            action: 'update',
+            entityType: 'objection',
+            entityId: updated.id,
+            before,
+            after: toAuditSnapshot(updated),
+        });
+
         return updated;
     }
 
@@ -157,6 +178,7 @@ export class ObjectionsService {
         reviewerId: string,
     ): Promise<ObjectionDocument> {
         const objection = await this.findDocument(id);
+        const before = toAuditSnapshot(objection);
 
         if (objection.status !== ObjectionStatus.PENDING) {
             throw new ConflictException(NOT_PENDING);
@@ -179,21 +201,32 @@ export class ObjectionsService {
 
         if (!updated) throw new ConflictException(NOT_PENDING);
 
+        await this.auditService.record({
+            action: 'review',
+            entityType: 'objection',
+            entityId: updated.id,
+            before,
+            after: toAuditSnapshot(updated),
+        });
+
         return updated;
     }
 
     async remove(id: string): Promise<void> {
-        const exists = await this.objectionModel.exists({
-            _id: id,
-            deleted_at: null,
-        });
-
-        if (!exists) throw new NotFoundException(NOT_FOUND);
+        const objection = await this.findDocument(id);
+        const before = toAuditSnapshot(objection);
 
         await this.objectionModel.updateOne(
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.auditService.record({
+            action: 'delete',
+            entityType: 'objection',
+            entityId: objection.id,
+            before,
+        });
     }
 
     private async findDocument(id: string): Promise<ObjectionDocument> {

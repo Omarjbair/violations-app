@@ -21,6 +21,8 @@ import { CitizensService } from '../citizens/citizens.service.js';
 import { VehiclesService } from '../vehicles/vehicles.service.js';
 import { ViolationTypesService } from '../violation-types/violation-types.service.js';
 import { BranchesService } from '../branches/branches.service.js';
+import { AuditService } from '../audit/audit.service.js';
+import { toAuditSnapshot } from '../../common/utils/audit-snapshot.js';
 
 const NOT_FOUND = 'المخالفة غير موجودة';
 const ALREADY_CANCELLED = 'المخالفة ملغاة مسبقاً';
@@ -39,6 +41,7 @@ export class ViolationsService {
         private readonly vehiclesService: VehiclesService,
         private readonly violationTypesService: ViolationTypesService,
         private readonly branchesService: BranchesService,
+        private readonly auditService: AuditService,
     ) {}
 
     async create(
@@ -69,18 +72,30 @@ export class ViolationsService {
             location: dto.location,
         };
 
+        let violation: ViolationDocument | null = null;
+
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
-                return await this.violationModel.create({
+                violation = await this.violationModel.create({
                     ...payload,
                     violation_number: this.generateViolationNumber(),
                 });
+                break;
             } catch (error) {
                 if (!isDuplicateKeyError(error) || attempt === 2) throw error;
             }
         }
 
-        throw new ConflictException(GENERATE_FAILED);
+        if (!violation) throw new ConflictException(GENERATE_FAILED);
+
+        await this.auditService.record({
+            action: 'create',
+            entityType: 'violation',
+            entityId: violation.id,
+            after: toAuditSnapshot(violation),
+        });
+
+        return violation;
     }
 
     async findAll(query: ViolationsQueryDto): Promise<Paginated<Violation>> {
@@ -146,6 +161,7 @@ export class ViolationsService {
         dto: UpdateViolationDto,
     ): Promise<ViolationDocument> {
         const violation = await this.findDocument(id);
+        const before = toAuditSnapshot(violation);
 
         if (violation.status === ViolationStatus.CANCELLED) {
             throw new ConflictException(ALREADY_CANCELLED);
@@ -198,11 +214,20 @@ export class ViolationsService {
 
         if (!updated) throw new NotFoundException(NOT_FOUND);
 
+        await this.auditService.record({
+            action: 'update',
+            entityType: 'violation',
+            entityId: updated.id,
+            before,
+            after: toAuditSnapshot(updated),
+        });
+
         return updated;
     }
 
     async cancel(id: string): Promise<ViolationDocument> {
         const violation = await this.findDocument(id);
+        const before = toAuditSnapshot(violation);
 
         if (violation.status === ViolationStatus.CANCELLED) {
             throw new ConflictException(ALREADY_CANCELLED);
@@ -230,11 +255,20 @@ export class ViolationsService {
 
         if (!updated) throw new ConflictException(HAS_PAYMENTS);
 
+        await this.auditService.record({
+            action: 'cancel',
+            entityType: 'violation',
+            entityId: updated.id,
+            before,
+            after: toAuditSnapshot(updated),
+        });
+
         return updated;
     }
 
     async remove(id: string): Promise<void> {
         const violation = await this.findDocument(id);
+        const before = toAuditSnapshot(violation);
 
         if (
             violation.status === ViolationStatus.PAID ||
@@ -247,6 +281,13 @@ export class ViolationsService {
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.auditService.record({
+            action: 'delete',
+            entityType: 'violation',
+            entityId: violation.id,
+            before,
+        });
     }
 
     private async findDocument(id: string): Promise<ViolationDocument> {

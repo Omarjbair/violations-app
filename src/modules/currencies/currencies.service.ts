@@ -12,6 +12,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
+import { RedisService } from '../../redis/redis.service.js';
 
 const NOT_FOUND = 'العملة غير موجودة';
 const CODE_TAKEN = 'رمز العملة مستخدم مسبقاً';
@@ -22,6 +23,7 @@ export class CurrenciesService {
     constructor(
         @InjectModel(Currency.name)
         private currencyModel: Model<Currency>,
+        private readonly redis: RedisService,
     ) {}
 
     async create(dto: CreateCurrencyDto): Promise<CurrencyDocument> {
@@ -29,19 +31,28 @@ export class CurrenciesService {
         await this.assertUnique({ code, name: dto.name });
 
         try {
-            return await this.currencyModel.create({
+            const currency = await this.currencyModel.create({
                 code,
                 name: dto.name,
             });
+
+            await this.redis.invalidate('cache:currencies');
+
+            return currency;
         } catch (error) {
             this.mapDuplicateError(error);
         }
     }
 
     async findAll(query: PaginationQueryDto): Promise<Paginated<Currency>> {
-        return paginate(this.currencyModel, { deleted_at: null }, query, {
-            code: 1,
-        });
+        return this.redis.getOrSet(
+            `cache:currencies:list:${query.page}:${query.limit}`,
+            this.redis.cacheTtl,
+            () =>
+                paginate(this.currencyModel, { deleted_at: null }, query, {
+                    code: 1,
+                }),
+        );
     }
 
     async findById(id: string): Promise<CurrencyDocument> {
@@ -83,6 +94,8 @@ export class CurrenciesService {
 
             if (!updated) throw new NotFoundException(NOT_FOUND);
 
+            await this.redis.invalidate('cache:currencies');
+
             return updated;
         } catch (error) {
             this.mapDuplicateError(error);
@@ -101,6 +114,8 @@ export class CurrenciesService {
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.redis.invalidate('cache:currencies');
     }
 
     private async assertUnique(

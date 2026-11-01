@@ -17,7 +17,7 @@ import { RolesGuard } from '../../common/guards/roles.guard.js';
         AuthService,
         JwtAccessStrategy,
         JwtRefreshStrategy,
-        { provide: APP_GUARD, useClass: JwtAuthGuard }, 
+        { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
     ],
 })

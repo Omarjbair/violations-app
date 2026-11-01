@@ -1,26 +1,28 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor.js';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  app.setGlobalPrefix('api'); 
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.useGlobalPipes(
+    app.set('trust proxy', 1);
+    app.setGlobalPrefix('api');
+
+    app.useGlobalPipes(
         new ValidationPipe({
-            whitelist: true,        
+            whitelist: true,
             forbidNonWhitelisted: true,
             transform: true,
         }),
     );
 
-  app.useGlobalInterceptors(new ResponseInterceptor());
+    app.useGlobalInterceptors(new ResponseInterceptor());
 
-  app.useGlobalFilters(new AllExceptionsFilter());
+    app.useGlobalFilters(new AllExceptionsFilter());
 
-  await app.listen(process.env.PORT ?? 3000);
+    await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();

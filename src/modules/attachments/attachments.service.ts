@@ -16,6 +16,8 @@ import { Violation } from '../violations/schemas/violation.schema.js';
 import { Objection } from '../objections/schemas/objection.schema.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { paginate } from '../../common/utils/pagination.js';
+import { AuditService } from '../audit/audit.service.js';
+import { toAuditSnapshot } from '../../common/utils/audit-snapshot.js';
 
 const NOT_FOUND = 'المرفق غير موجود';
 const FILE_MISSING = 'الملف غير موجود على الخادم';
@@ -37,6 +39,7 @@ export class AttachmentsService {
         private violationModel: Model<Violation>,
         @InjectModel(Objection.name)
         private objectionModel: Model<Objection>,
+        private readonly auditService: AuditService,
     ) {}
 
     async create(
@@ -70,7 +73,7 @@ export class AttachmentsService {
                 }
             }
 
-            return await this.attachmentModel.create({
+            const attachment = await this.attachmentModel.create({
                 file_name: file.filename,
                 original_name: file.originalname,
                 mime_type: file.mimetype,
@@ -79,6 +82,15 @@ export class AttachmentsService {
                 violation_id: dto.violation_id ?? null,
                 objection_id: dto.objection_id ?? null,
             });
+
+            await this.auditService.record({
+                action: 'create',
+                entityType: 'attachment',
+                entityId: attachment.id,
+                after: toAuditSnapshot(attachment),
+            });
+
+            return attachment;
         } catch (error) {
             await unlink(file.path).catch(() => undefined);
             throw error;
@@ -146,17 +158,20 @@ export class AttachmentsService {
     }
 
     async remove(id: string): Promise<void> {
-        const exists = await this.attachmentModel.exists({
-            _id: id,
-            deleted_at: null,
-        });
-
-        if (!exists) throw new NotFoundException(NOT_FOUND);
+        const attachment = await this.findDocument(id);
+        const before = toAuditSnapshot(attachment);
 
         await this.attachmentModel.updateOne(
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.auditService.record({
+            action: 'delete',
+            entityType: 'attachment',
+            entityId: attachment.id,
+            before,
+        });
     }
 
     private async findDocument(id: string): Promise<AttachmentDocument> {

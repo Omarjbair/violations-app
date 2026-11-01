@@ -10,10 +10,10 @@ export class JwtAuthGuard extends AuthGuard('jwt-access') {
     }
 
     canActivate(ctx: ExecutionContext) {
-        const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-            ctx.getHandler(),
-            ctx.getClass(),
-        ]);
+        const isPublic = this.reflector.getAllAndOverride<boolean>(
+            IS_PUBLIC_KEY,
+            [ctx.getHandler(), ctx.getClass()],
+        );
         return isPublic ? true : super.canActivate(ctx);
     }
 }

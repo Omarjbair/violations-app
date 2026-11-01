@@ -13,6 +13,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
 import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
+import { RedisService } from '../../redis/redis.service.js';
 
 const NOT_FOUND = 'المحافظة غير موجودة';
 const NAME_TAKEN = 'اسم المحافظة مستخدم مسبقاً';
@@ -23,15 +24,20 @@ export class StatesService {
     constructor(
         @InjectModel(State.name) private stateModel: Model<State>,
         @InjectModel(Address.name) private addressModel: Model<Address>,
+        private readonly redis: RedisService,
     ) {}
 
     async create(createStateDto: CreateStateDto): Promise<StateDocument> {
         await this.assertUnique(createStateDto.name);
 
         try {
-            return await this.stateModel.create({
+            const state = await this.stateModel.create({
                 name: createStateDto.name,
             });
+
+            await this.redis.invalidate('cache:states');
+
+            return state;
         } catch (error) {
             if (isDuplicateKeyError(error)) {
                 throw new ConflictException(NAME_TAKEN);
@@ -41,9 +47,14 @@ export class StatesService {
     }
 
     async findAll(query: PaginationQueryDto): Promise<Paginated<State>> {
-        return paginate(this.stateModel, { deleted_at: null }, query, {
-            name: 1,
-        });
+        return this.redis.getOrSet(
+            `cache:states:list:${query.page}:${query.limit}`,
+            this.redis.cacheTtl,
+            () =>
+                paginate(this.stateModel, { deleted_at: null }, query, {
+                    name: 1,
+                }),
+        );
     }
 
     async findById(id: string): Promise<StateDocument> {
@@ -87,6 +98,8 @@ export class StatesService {
 
             if (!updated) throw new NotFoundException(NOT_FOUND);
 
+            await this.redis.invalidate('cache:states');
+
             return updated;
         } catch (error) {
             if (isDuplicateKeyError(error)) {
@@ -115,6 +128,8 @@ export class StatesService {
             { _id: id, deleted_at: null },
             { deleted_at: new Date() },
         );
+
+        await this.redis.invalidate('cache:states');
     }
 
     private async assertUnique(

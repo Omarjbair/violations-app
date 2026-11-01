@@ -7,7 +7,10 @@ import jwtConfig from '../../../config/jwt.config.js';
 import type { JwtPayload } from './jwt-access.strategy.js';
 
 @Injectable()
-export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+export class JwtRefreshStrategy extends PassportStrategy(
+    Strategy,
+    'jwt-refresh',
+) {
     constructor(@Inject(jwtConfig.KEY) cfg: ConfigType<typeof jwtConfig>) {
         super({
             jwtFromRequest: ExtractJwt.fromBodyField('refresh_token'),
@@ -21,6 +24,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
         return {
             id: payload.sub,
             role: payload.role,
+            jti: payload.jti,
             refresh_token: req.body.refresh_token as string,
         };
     }
