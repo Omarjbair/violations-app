@@ -12,6 +12,7 @@ import { AddressesModule } from './modules/addresses/addresses.module.js';
 import { BranchesModule } from './modules/branches/branches.module.js';
 import { VehiclesModule } from './modules/vehicles/vehicles.module.js';
 import { ViolationTypesModule } from './modules/violation-types/violation-types.module.js';
+import { ViolationsModule } from './modules/violations/violations.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -31,6 +32,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         BranchesModule,
         VehiclesModule,
         ViolationTypesModule,
+        ViolationsModule,
     ],
 })
 export class AppModule {}
