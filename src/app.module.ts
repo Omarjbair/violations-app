@@ -13,6 +13,8 @@ import { BranchesModule } from './modules/branches/branches.module.js';
 import { VehiclesModule } from './modules/vehicles/vehicles.module.js';
 import { ViolationTypesModule } from './modules/violation-types/violation-types.module.js';
 import { ViolationsModule } from './modules/violations/violations.module.js';
+import { CurrenciesModule } from './modules/currencies/currencies.module.js';
+import { PaymentsModule } from './modules/payments/payments.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -33,6 +35,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         VehiclesModule,
         ViolationTypesModule,
         ViolationsModule,
+        CurrenciesModule,
+        PaymentsModule,
     ],
 })
 export class AppModule {}

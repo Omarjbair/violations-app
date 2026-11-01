@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { Branch } from '../../branches/schemas/branch.schema.js';
 import { Citizen } from '../../citizens/schemas/citizen.schema.js';
+import { Currency } from '../../currencies/schemas/currency.schema.js';
 import { User } from '../../users/schemas/user.schema.js';
 import { Vehicle } from '../../vehicles/schemas/vehicle.schema.js';
 import { ViolationType } from '../../violation-types/schemas/violation-type.schema.js';
@@ -82,7 +83,7 @@ export class Violation {
     })
     fine_amount: number;
 
-    @Prop({ type: Types.ObjectId, ref: 'Currency', default: null })
+    @Prop({ type: Types.ObjectId, ref: Currency.name, default: null })
     paid_currency_id: Types.ObjectId | null;
 
     @Prop({ type: Number, default: 0, min: 0 })

@@ -27,6 +27,7 @@ const ALREADY_CANCELLED = 'المخالفة ملغاة مسبقاً';
 const HAS_PAYMENTS = 'لا يمكن إلغاء مخالفة عليها دفعات';
 const DELETE_HAS_PAYMENTS = 'لا يمكن حذف مخالفة عليها دفعات';
 const TYPE_INACTIVE = 'نوع المخالفة غير فعّال';
+const FINE_LOCKED = 'لا يمكن تعديل الغرامة بعد بدء الدفع';
 const GENERATE_FAILED = 'تعذر توليد رقم المخالفة، حاول مرة أخرى';
 
 @Injectable()
@@ -134,6 +135,7 @@ export class ViolationsService {
             },
             { path: 'branch_id', select: 'code name phone' },
             { path: 'officer_id', select: 'username first_name last_name' },
+            { path: 'paid_currency_id', select: 'code name' },
         ]);
 
         return violation;
@@ -147,6 +149,10 @@ export class ViolationsService {
 
         if (violation.status === ViolationStatus.CANCELLED) {
             throw new ConflictException(ALREADY_CANCELLED);
+        }
+
+        if (dto.fine_amount !== undefined && violation.paid_amount > 0) {
+            throw new ConflictException(FINE_LOCKED);
         }
 
         if (dto.citizen_id) {
