@@ -15,6 +15,7 @@ import { ViolationTypesModule } from './modules/violation-types/violation-types.
 import { ViolationsModule } from './modules/violations/violations.module.js';
 import { CurrenciesModule } from './modules/currencies/currencies.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
+import { ObjectionsModule } from './modules/objections/objections.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -37,6 +38,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         ViolationsModule,
         CurrenciesModule,
         PaymentsModule,
+        ObjectionsModule,
     ],
 })
 export class AppModule {}
