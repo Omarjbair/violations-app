@@ -12,6 +12,11 @@ import { UpdateStateDto } from './dto/update-state.dto.js';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
+import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
+
+const NOT_FOUND = 'المحافظة غير موجودة';
+const NAME_TAKEN = 'اسم المحافظة مستخدم مسبقاً';
+const HAS_ADDRESSES = 'لا يمكن حذف المحافظة لوجود عناوين مرتبطة بها';
 
 @Injectable()
 export class StatesService {
@@ -21,90 +26,110 @@ export class StatesService {
     ) {}
 
     async create(createStateDto: CreateStateDto): Promise<StateDocument> {
-        const existing = await this.stateModel.findOne({
-            name: createStateDto.name,
-            deleted_at: null,
-        });
+        await this.assertUnique(createStateDto.name);
 
-        if (existing) {
-            throw new ConflictException('اسم المحافظة مستخدم مسبقاً');
+        try {
+            return await this.stateModel.create({
+                name: createStateDto.name,
+            });
+        } catch (error) {
+            if (isDuplicateKeyError(error)) {
+                throw new ConflictException(NAME_TAKEN);
+            }
+            throw error;
         }
-
-        return this.stateModel.create(createStateDto);
     }
 
     async findAll(query: PaginationQueryDto): Promise<Paginated<State>> {
-        return paginate(this.stateModel, { deleted_at: null }, query, { name: 1 });
+        return paginate(this.stateModel, { deleted_at: null }, query, {
+            name: 1,
+        });
     }
 
     async findById(id: string): Promise<StateDocument> {
-        const state = await this.stateModel.findOne({ _id: id, deleted_at: null });
+        const state = await this.stateModel.findOne({
+            _id: id,
+            deleted_at: null,
+        });
 
-        if (!state) throw new NotFoundException('المحافظة غير موجودة');
+        if (!state) throw new NotFoundException(NOT_FOUND);
 
         return state;
     }
 
-    async update(id: string, updateStateDto: UpdateStateDto): Promise<StateDocument> {
-        if (updateStateDto.name) {
-            const existing = await this.stateModel.findOne({
-                name: updateStateDto.name,
-                _id: { $ne: id },
-                deleted_at: null, //
-            });
+    async update(
+        id: string,
+        updateStateDto: UpdateStateDto,
+    ): Promise<StateDocument> {
+        const exists = await this.stateModel.exists({
+            _id: id,
+            deleted_at: null,
+        });
 
-            if (existing) {
-                throw new ConflictException('اسم المحافظة مستخدم مسبقاً');
-            }
+        if (!exists) throw new NotFoundException(NOT_FOUND);
+
+        if (updateStateDto.name !== undefined) {
+            await this.assertUnique(updateStateDto.name, id);
         }
 
-        const updated = await this.stateModel.findOneAndUpdate(
-            { _id: id, deleted_at: null },
-            updateStateDto,
-            { new: true },
-        );
+        const update: Record<string, unknown> = {};
 
-        if (!updated) throw new NotFoundException('المحافظة غير موجودة');
+        if (updateStateDto.name !== undefined) {
+            update.name = updateStateDto.name;
+        }
 
-        return updated;
+        try {
+            const updated = await this.stateModel.findOneAndUpdate(
+                { _id: id, deleted_at: null },
+                update,
+                { new: true, runValidators: true },
+            );
+
+            if (!updated) throw new NotFoundException(NOT_FOUND);
+
+            return updated;
+        } catch (error) {
+            if (isDuplicateKeyError(error)) {
+                throw new ConflictException(NAME_TAKEN);
+            }
+            throw error;
+        }
     }
 
     async remove(id: string): Promise<void> {
-        const session = await this.stateModel.db.startSession();
+        const exists = await this.stateModel.exists({
+            _id: id,
+            deleted_at: null,
+        });
 
-        try {
-            await session.withTransaction(async () => {
-                // check if state exist
-                const state = await this.stateModel.findOne(
-                    { _id: id, deleted_at: null },
-                    null,
-                    { session },
-                );
+        if (!exists) throw new NotFoundException(NOT_FOUND);
 
-                if (!state) throw new NotFoundException('المحافظة غير موجودة');
+        const linkedAddresses = await this.addressModel.countDocuments({
+            state_id: id,
+            deleted_at: null,
+        });
 
-                // check linke addresses
-                const linkedAddresses = await this.addressModel.countDocuments(
-                    { state: id, deleted_at: null },
-                    { session },
-                );
+        if (linkedAddresses > 0) throw new ConflictException(HAS_ADDRESSES);
 
-                if (linkedAddresses > 0) {
-                    throw new ConflictException(
-                        'لا يمكن حذف المحافظة لوجود عناوين مرتبطة بها',
-                    );
-                }
+        await this.stateModel.updateOne(
+            { _id: id, deleted_at: null },
+            { deleted_at: new Date() },
+        );
+    }
 
-                // 3) soft delete the state
-                await this.stateModel.updateOne(
-                    { _id: id, deleted_at: null },
-                    { deleted_at: new Date() },
-                    { session },
-                );
-            });
-            
-        } finally {
-            await session.endSession();
-        }
+    private async assertUnique(
+        name: string,
+        excludeId?: string,
+    ): Promise<void> {
+        const filter: Record<string, unknown> = {
+            name,
+            deleted_at: null,
+        };
+
+        if (excludeId) filter._id = { $ne: excludeId };
+
+        const duplicate = await this.stateModel.findOne(filter);
+
+        if (duplicate) throw new ConflictException(NAME_TAKEN);
     }
 }

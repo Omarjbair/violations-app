@@ -5,6 +5,7 @@ import {
     IsString,
     Matches,
 } from 'class-validator';
+import { SYRIAN_PHONE_REGEX } from '../../../common/constants/patterns.js';
 
 export class CreateCitizenDto {
     @Matches(/^\d{11}$/, { message: 'الرقم الوطني يجب أن يتكون من 11 رقماً' })
@@ -29,7 +30,7 @@ export class CreateCitizenDto {
     @IsDateString({}, { message: 'تاريخ الميلاد غير صالح' })
     date_of_birth: string;
 
-    @Matches(/^\+?\d{7,15}$/, { message: 'رقم الهاتف غير صالح' })
+    @Matches(SYRIAN_PHONE_REGEX, { message: 'رقم الهاتف غير صالح' })
     phone: string;
 
     @IsMongoId({ message: 'معرّف العنوان غير صالح' })

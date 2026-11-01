@@ -23,7 +23,6 @@ export class StatesController {
     constructor(private readonly statesService: StatesService) {}
 
     @Get()
-
     findAll(@Query() query: PaginationQueryDto) {
         return this.statesService.findAll(query);
     }
@@ -32,7 +31,6 @@ export class StatesController {
     findOne(@Param('id', ParseObjectIdPipe) id: string) {
         return this.statesService.findById(id);
     }
-
 
     @Post()
     create(@Body() createStateDto: CreateStateDto) {

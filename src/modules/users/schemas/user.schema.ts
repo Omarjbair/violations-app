@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { Branch } from '../../branches/schemas/branch.schema.js';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -12,7 +13,6 @@ export enum UserRole {
 export class User {
     @Prop({
         required: [true, 'اسم المستخدم مطلوب'],
-        unique: true,
         trim: true,
         minlength: [3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'],
     })
@@ -20,7 +20,6 @@ export class User {
 
     @Prop({
         required: [true, 'رقم الهاتف مطلوب'],
-        unique: true,
         trim: true,
     })
     phone: string;
@@ -41,7 +40,7 @@ export class User {
     @Prop({ default: true })
     is_active: boolean;
 
-    @Prop({ type: Types.ObjectId, ref: 'Branch' })
+    @Prop({ type: Types.ObjectId, ref: Branch.name, index: true })
     branch_id: Types.ObjectId;
 
     @Prop({
@@ -55,10 +54,20 @@ export class User {
     role: UserRole;
 
     @Prop({ type: Date, default: null })
-    deleted_at: Date;
+    deleted_at: Date | null;
 
     @Prop({ type: String, default: null, select: false })
     refresh_token_hash: string | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+UserSchema.index(
+    { username: 1 },
+    { unique: true, partialFilterExpression: { deleted_at: null } },
+);
+
+UserSchema.index(
+    { phone: 1 },
+    { unique: true, partialFilterExpression: { deleted_at: null } },
+);

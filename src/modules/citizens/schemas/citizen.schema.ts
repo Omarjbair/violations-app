@@ -45,11 +45,11 @@ CitizenSchema.index(
     { national_id: 1 },
     {
         unique: true,
-        partialFilterExpression: { deleted_at: { $type: 'null' } },
+        partialFilterExpression: { deleted_at: null },
     },
 );
 
 CitizenSchema.index(
     { address_id: 1 },
-    { unique: true, partialFilterExpression: { deleted_at: { $type: 'null' } } },
+    { unique: true, partialFilterExpression: { deleted_at: null } },
 );

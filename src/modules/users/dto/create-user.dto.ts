@@ -1,14 +1,13 @@
 import {
     IsEnum,
+    IsMongoId,
     IsOptional,
     IsString,
     Matches,
     MinLength,
 } from 'class-validator';
 import { UserRole } from '../schemas/user.schema.js';
-
-// syrian number regex
-const SYRIAN_PHONE_REGEX = /^(?:\+963|00963|0)9[0-9]{8}$/;
+import { SYRIAN_PHONE_REGEX } from '../../../common/constants/patterns.js';
 
 export class CreateUserDto {
     @IsString({ message: 'اسم المستخدم يجب أن يكون نصاً' })
@@ -17,8 +16,7 @@ export class CreateUserDto {
 
     @IsString({ message: 'رقم الهاتف يجب أن يكون نصاً' })
     @Matches(SYRIAN_PHONE_REGEX, {
-        message:
-            'رقم الهاتف يجب أن يكون رقماً صالحاً',
+        message: 'رقم الهاتف يجب أن يكون رقماً صالحاً',
     })
     phone: string;
 
@@ -35,7 +33,7 @@ export class CreateUserDto {
     last_name?: string;
 
     @IsOptional()
-    @IsString({ message: 'معرّف الفرع غير صالح' })
+    @IsMongoId({ message: 'معرّف الفرع غير صالح' })
     branch_id?: string;
 
     @IsOptional()

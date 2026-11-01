@@ -3,6 +3,7 @@ import {
     Controller,
     Delete,
     Get,
+    HttpCode,
     Param,
     Patch,
     Post,
@@ -16,8 +17,8 @@ import { UserRole } from './schemas/user.schema.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 
-@Roles(UserRole.ADMIN)
 @Controller('v1/users')
+@Roles(UserRole.ADMIN)
 export class UsersController {
     constructor(private readonly usersService: UsersService) {}
 
@@ -37,11 +38,15 @@ export class UsersController {
     }
 
     @Patch(':id')
-    update(@Param('id', ParseObjectIdPipe) id: string, @Body() updateUserDto: UpdateUserDto) {
+    update(
+        @Param('id', ParseObjectIdPipe) id: string,
+        @Body() updateUserDto: UpdateUserDto,
+    ) {
         return this.usersService.update(id, updateUserDto);
     }
 
     @Delete(':id')
+    @HttpCode(204)
     remove(@Param('id', ParseObjectIdPipe) id: string) {
         return this.usersService.remove(id);
     }

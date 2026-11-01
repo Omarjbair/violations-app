@@ -12,18 +12,11 @@ import { UpdateCitizenDto } from './dto/update-citizen.dto.js';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { paginate } from '../../common/utils/pagination.js';
 import { Paginated } from '../../common/interfaces/pagination.interface.js';
+import { isDuplicateKeyError } from '../../common/utils/mongo-errors.js';
 
 const NATIONAL_ID_TAKEN = 'الرقم الوطني مستخدم مسبقاً';
 const NOT_FOUND = 'المواطن غير موجود';
 const ADDRESS_NOT_FOUND = 'العنوان غير موجود';
-
-function isDuplicateKeyError(error: unknown): boolean {
-    return (
-        typeof error === 'object' &&
-        error !== null &&
-        (error as { code?: number }).code === 11000
-    );
-}
 
 @Injectable()
 export class CitizensService {
@@ -43,7 +36,16 @@ export class CitizensService {
         if (existing) throw new ConflictException(NATIONAL_ID_TAKEN);
 
         try {
-            return await this.citizenModel.create(dto);
+            return await this.citizenModel.create({
+                national_id: dto.national_id,
+                first_name: dto.first_name,
+                father_name: dto.father_name,
+                mother_name: dto.mother_name,
+                last_name: dto.last_name,
+                date_of_birth: dto.date_of_birth,
+                phone: dto.phone,
+                address_id: dto.address_id,
+            });
         } catch (error) {
             if (isDuplicateKeyError(error)) {
                 throw new ConflictException(NATIONAL_ID_TAKEN);
@@ -63,7 +65,7 @@ export class CitizensService {
             .findOne({ _id: id, deleted_at: null })
             .populate({
                 path: 'address_id',
-                populate: { path: 'state_id' },
+                populate: { path: 'state_id', select: 'name' },
             });
 
         if (!citizen) throw new NotFoundException(NOT_FOUND);
@@ -72,7 +74,10 @@ export class CitizensService {
     }
 
     async update(id: string, dto: UpdateCitizenDto): Promise<CitizenDocument> {
-        const exists = await this.citizenModel.exists({ _id: id, deleted_at: null });
+        const exists = await this.citizenModel.exists({
+            _id: id,
+            deleted_at: null,
+        });
 
         if (!exists) throw new NotFoundException(NOT_FOUND);
 
@@ -90,11 +95,23 @@ export class CitizensService {
             await this.assertAddressExists(dto.address_id);
         }
 
+        const update: Record<string, unknown> = {};
+
+        if (dto.national_id !== undefined) update.national_id = dto.national_id;
+        if (dto.first_name !== undefined) update.first_name = dto.first_name;
+        if (dto.father_name !== undefined) update.father_name = dto.father_name;
+        if (dto.mother_name !== undefined) update.mother_name = dto.mother_name;
+        if (dto.last_name !== undefined) update.last_name = dto.last_name;
+        if (dto.date_of_birth !== undefined)
+            update.date_of_birth = dto.date_of_birth;
+        if (dto.phone !== undefined) update.phone = dto.phone;
+        if (dto.address_id !== undefined) update.address_id = dto.address_id;
+
         try {
             const updated = await this.citizenModel.findOneAndUpdate(
                 { _id: id, deleted_at: null },
-                dto,
-                { new: true },
+                update,
+                { new: true, runValidators: true },
             );
 
             if (!updated) throw new NotFoundException(NOT_FOUND);
