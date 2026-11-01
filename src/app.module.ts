@@ -16,6 +16,7 @@ import { ViolationsModule } from './modules/violations/violations.module.js';
 import { CurrenciesModule } from './modules/currencies/currencies.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ObjectionsModule } from './modules/objections/objections.module.js';
+import { AttachmentsModule } from './modules/attachments/attachments.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -39,6 +40,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         CurrenciesModule,
         PaymentsModule,
         ObjectionsModule,
+        AttachmentsModule,
     ],
 })
 export class AppModule {}
